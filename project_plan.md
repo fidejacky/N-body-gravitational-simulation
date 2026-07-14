@@ -2,10 +2,17 @@
 
 A hand-written CUDA implementation of a direct (all-pairs) gravitational N-body
 simulation, built to explore how a compute-bound problem with high arithmetic
-intensity maps onto the GPU. The project starts from a serial CPU baseline and
-stacks five optimizations — each measured independently — up to a tiled,
+intensity maps onto the GPU. This is a school project for a GPU Computing
+course, and the work is organized as an iterative set of independently
+benchmarkable stages. The project starts from a serial CPU baseline and stacks
+five optimizations — each measured independently — up to a tiled,
 occupancy-tuned kernel, with a library-based implementation used only as a
 performance ceiling for comparison.
+
+Before choosing hardware-specific defaults such as block size, occupancy targets,
+or fast-math settings, the target GPU and CUDA toolkit version should be
+confirmed so the implementation remains portable and the reported results are
+meaningful.
 
 The core kernels are written from scratch; Thrust and cuBLAS appear only for
 validation and as a reference upper bound, not as the main implementation.
