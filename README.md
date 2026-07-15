@@ -20,6 +20,7 @@ This repository contains a staged GPU Computing project for a direct, all-pairs 
 - [src/common.h](src/common.h) - shared helpers for float4 operations, initialization, timing, and CSV output.
 - [src/nbody_cpu.cpp](src/nbody_cpu.cpp) - Stage 0 CPU baseline.
 - [src/nbody_naive.cu](src/nbody_naive.cu) - Stage 1 naive GPU kernel (one thread per body).
+- [src/nbody_tiled.cu](src/nbody_tiled.cu) - Stage 2 shared-memory tiled GPU kernel.
 - [src/validate.cpp](src/validate.cpp) - compares two stages' `--dump-final` position dumps against a tolerance.
 - [docs/log.md](docs/log.md) - iterative development log.
 - [project_plan.md](project_plan.md) - project plan and stage breakdown.
@@ -88,6 +89,14 @@ n=8192 avg_ms_per_step=... avg_total_ms=...
 
 Same CSV format as Stage 0, appended to the path passed via `--csv` (defaults to `results\stage1_benchmark.csv`), so the two stages can be compared directly.
 
+**Stage 2 (shared-memory tiling)** loads each tile of bodies into `__shared__` memory once per block instead of once per thread, cutting global memory traffic:
+
+```powershell
+results\nbody_tiled.exe --n 8192 --steps 50 --repeats 3 --csv results\stage2_sample.csv
+```
+
+Same CLI/CSV format as Stages 0 and 1, defaulting to `results\stage2_benchmark.csv`.
+
 ### Validating a stage against the CPU baseline
 
 Both `nbody_cpu.exe` and `nbody_naive.exe` accept a `--dump-final <path>` flag that writes final body positions to a CSV instead of (in addition to) the timing CSV. Since both share the same seeded RNG for initial conditions, running both with identical `--n`/`--steps` produces directly comparable output, body-for-body, with no matching or sorting needed.
@@ -109,7 +118,6 @@ bodies=4096 max_dist=... mean_dist=... tolerance=0.01 result=PASS
 **Use a small step count (10-30) for this check, not a large one.** Gravitational N-body systems are chaotic: a tiny float32-vs-double rounding difference between the CPU baseline (double-precision force accumulation) and the GPU kernel (single-precision throughout) gets exponentially amplified over many steps, especially around close encounters. Measured on this machine at N=4096, max positional deviation grew from `0.00015` at 10 steps to `2.43` at 100 steps, an expected chaotic blowup, not a bug. A short run validates that the force calculation and integration are implemented correctly; a long run will fail regardless of correctness, because no two floating-point implementations of a chaotic system stay in agreement indefinitely.
 
 ## Next stages
-- Stage 2: shared-memory tiling.
 - Stage 3: loop unrolling and fast-math.
 - Stage 4: block-size and occupancy tuning.
 

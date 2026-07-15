@@ -31,6 +31,9 @@ target_compile_features(nbody_cpu PRIVATE cxx_std_17)
 # Stage 1: naive GPU implementation
 add_executable(nbody_naive src/nbody_naive.cu)
 
+# Stage 2: shared-memory tiling
+add_executable(nbody_tiled src/nbody_tiled.cu)
+
 # Cross-stage correctness check (no CUDA needed): compares two --dump-final CSVs
 add_executable(validate src/validate.cpp)
 target_compile_features(validate PRIVATE cxx_std_17)
