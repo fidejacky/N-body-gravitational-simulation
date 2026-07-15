@@ -1,4 +1,16 @@
 cmake_minimum_required(VERSION 3.24)
+
+# "native" auto-detection has been unreliable in this environment (it resolved
+# to sm_75 on an RTX 5050, a Blackwell/sm_120 GPU), forcing a PTX JIT path that
+# the installed driver's toolchain couldn't parse. Pin the real architecture
+# explicitly; "-real" embeds only native SASS, skipping PTX JIT entirely. This
+# must be set before project() enables CUDA, since project() auto-detects and
+# caches CMAKE_CUDA_ARCHITECTURES itself the moment it identifies the compiler,
+# before any if(NOT CMAKE_CUDA_ARCHITECTURES) check placed after it would run.
+if(NOT CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES 120-real)
+endif()
+
 project(nbody LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -10,10 +22,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(NOT CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
-endif()
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/results)
 
 # Stage 0: CPU baseline (no CUDA)
@@ -22,4 +30,3 @@ target_compile_features(nbody_cpu PRIVATE cxx_std_17)
 
 # Stage 1: naive GPU implementation
 add_executable(nbody_naive src/nbody_naive.cu)
-set_target_properties(nbody_naive PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
