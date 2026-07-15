@@ -63,3 +63,24 @@ Confirms the O(N²) slope on the CPU side and a widening CPU/GPU gap as N grows,
 
 - Speedup is real but modest (1.0-1.6x), smaller than the canonical tiling result in the literature. Plausible reason: this GPU's L2 cache is large relative to these problem sizes, so Stage 1's redundant global reads were likely already being served from L2 rather than DRAM, dampening the benefit of explicit shared-memory reuse. Worth revisiting with Nsight Compute memory-throughput metrics in the profiling section (Stage 4).
 - Next step: loop unrolling and fast-math intrinsics (Stage 3).
+
+## Stage 3: loop unrolling and fast-math intrinsics implemented, validated, and benchmarked
+- Implemented `computeForcesTiledFastKernel` in `src/nbody_tiled_fastmath.cu`: same shared-memory tiling as Stage 2, plus `#pragma unroll` on the inner tile loop, `rsqrtf` replacing the `1.0f / sqrtf(...)` path, and `fmaf` for the three acceleration accumulations. `integrateKernel` unchanged (integration is O(N), not this stage's target).
+- Built as **two** CMake targets from the same source, to isolate the compiler flag's effect from the manual intrinsics: `nbody_tiled_fastmath` (manual changes only) and `nbody_tiled_fastmath_um` (same source, additionally compiled with `--use_fast_math`), per `project_plan.md`'s call to record the accuracy difference from `-use_fast_math` separately.
+- Validated both against the CPU baseline at N=4096, 20 steps:
+  - Manual intrinsics: `max_dist=0.000521914`, `PASS` — slightly higher than Stage 1/2's `0.000474052`, consistent with `rsqrtf` trading a small amount of precision for throughput versus an exact division.
+  - `--use_fast_math`: `max_dist=0.000521914`, `PASS` — identical to the manual-only build at this step count. The flag's extra relaxations (denormal flush-to-zero, more aggressive FMA contraction) don't show up as additional error here, though this is a short-step spot check, not a guarantee at longer horizons where chaotic amplification (documented under Stage 1) dominates regardless of implementation.
+- Benchmarked full sweep (steps=100, repeats=3, warmup=1):
+
+| N     | Stage 2 tiled (ms/step) | Stage 3 manual (ms/step) | Stage 3 use_fast_math (ms/step) | Manual vs Stage 2 | fast_math vs manual |
+|-------|--------------------------|----------------------------|-----------------------------------|--------------------|------------------------|
+| 1024  | 0.206                    | 0.0769                     | 0.0695                            | 2.68x              | 1.11x                  |
+| 2048  | 0.181                    | 0.0458                     | 0.0409                            | 3.95x              | 1.12x                  |
+| 4096  | 0.344                    | 0.0863                     | 0.0808                            | 3.99x              | 1.07x                  |
+| 8192  | 0.767                    | 0.286                      | 0.265                             | 2.68x              | 1.08x                  |
+| 16384 | 2.406                    | 1.084                      | 1.000                             | 2.22x              | 1.08x                  |
+| 32768 | 7.703                    | 3.860                      | 3.623                             | 2.00x              | 1.07x                  |
+
+- The manual intrinsics alone give a substantial 2-4x speedup over Stage 2, bigger than Stage 2's own gain over Stage 1 — eliminating the sqrt+divide is evidently a bigger win on this GPU than the memory-access reorganization was. `--use_fast_math` on top adds a consistent but modest further ~7-12%, since explicitly calling `rsqrtf` already captured most of the benefit the flag would otherwise provide.
+- A quick single-run spot check (N=4096, 20 steps, no sweep averaging) initially suggested `--use_fast_math` was ~2.2x faster than the manual-only build; the full sweep with repeated, averaged runs contradicts this and shows only ~7-12%. Noted here as a reminder that small ad-hoc timing checks are noisy and the averaged sweep is the trustworthy number.
+- Next step: block-size and occupancy tuning (Stage 4).

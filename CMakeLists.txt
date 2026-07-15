@@ -34,6 +34,15 @@ add_executable(nbody_naive src/nbody_naive.cu)
 # Stage 2: shared-memory tiling
 add_executable(nbody_tiled src/nbody_tiled.cu)
 
+# Stage 3: loop unrolling + rsqrtf/fmaf intrinsics
+add_executable(nbody_tiled_fastmath src/nbody_tiled_fastmath.cu)
+
+# Same Stage 3 source, additionally compiled with --use_fast_math, to measure
+# the accuracy/speed tradeoff of the compiler's aggressive math flag on top of
+# the manual intrinsics, as called out in project_plan.md.
+add_executable(nbody_tiled_fastmath_um src/nbody_tiled_fastmath.cu)
+target_compile_options(nbody_tiled_fastmath_um PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
+
 # Cross-stage correctness check (no CUDA needed): compares two --dump-final CSVs
 add_executable(validate src/validate.cpp)
 target_compile_features(validate PRIVATE cxx_std_17)

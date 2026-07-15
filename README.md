@@ -21,6 +21,7 @@ This repository contains a staged GPU Computing project for a direct, all-pairs 
 - [src/nbody_cpu.cpp](src/nbody_cpu.cpp) - Stage 0 CPU baseline.
 - [src/nbody_naive.cu](src/nbody_naive.cu) - Stage 1 naive GPU kernel (one thread per body).
 - [src/nbody_tiled.cu](src/nbody_tiled.cu) - Stage 2 shared-memory tiled GPU kernel.
+- [src/nbody_tiled_fastmath.cu](src/nbody_tiled_fastmath.cu) - Stage 3 kernel (loop unrolling, `rsqrtf`, `fmaf`); built as two targets, with and without `--use_fast_math`.
 - [src/validate.cpp](src/validate.cpp) - compares two stages' `--dump-final` position dumps against a tolerance.
 - [docs/log.md](docs/log.md) - iterative development log.
 - [project_plan.md](project_plan.md) - project plan and stage breakdown.
@@ -97,6 +98,15 @@ results\nbody_tiled.exe --n 8192 --steps 50 --repeats 3 --csv results\stage2_sam
 
 Same CLI/CSV format as Stages 0 and 1, defaulting to `results\stage2_benchmark.csv`.
 
+**Stage 3 (loop unrolling + fast-math intrinsics)** adds `#pragma unroll` on the inner tile loop and replaces `1.0f / sqrtf(...)` with the `rsqrtf` intrinsic plus `fmaf` for the accumulation, on top of Stage 2's tiling. Built as two executables from the same source so the compiler flag's effect can be measured separately from the manual changes:
+
+```powershell
+results\nbody_tiled_fastmath.exe --n 8192 --steps 50 --repeats 3 --csv results\stage3_sample.csv
+results\nbody_tiled_fastmath_um.exe --n 8192 --steps 50 --repeats 3 --csv results\stage3_um_sample.csv
+```
+
+`nbody_tiled_fastmath_um` is the same kernel additionally compiled with `--use_fast_math`. On this GPU, the manual intrinsics alone gave a 2-4x speedup over Stage 2 (bigger than Stage 2's own speedup over Stage 1), and `--use_fast_math` added a further, consistent ~7-12% on top, since explicitly calling `rsqrtf` already captured most of the benefit the flag would otherwise provide. Both variants validated correctly against the CPU baseline (see `docs/log.md` for the full numbers).
+
 ### Validating a stage against the CPU baseline
 
 Both `nbody_cpu.exe` and `nbody_naive.exe` accept a `--dump-final <path>` flag that writes final body positions to a CSV instead of (in addition to) the timing CSV. Since both share the same seeded RNG for initial conditions, running both with identical `--n`/`--steps` produces directly comparable output, body-for-body, with no matching or sorting needed.
@@ -118,7 +128,6 @@ bodies=4096 max_dist=... mean_dist=... tolerance=0.01 result=PASS
 **Use a small step count (10-30) for this check, not a large one.** Gravitational N-body systems are chaotic: a tiny float32-vs-double rounding difference between the CPU baseline (double-precision force accumulation) and the GPU kernel (single-precision throughout) gets exponentially amplified over many steps, especially around close encounters. Measured on this machine at N=4096, max positional deviation grew from `0.00015` at 10 steps to `2.43` at 100 steps, an expected chaotic blowup, not a bug. A short run validates that the force calculation and integration are implemented correctly; a long run will fail regardless of correctness, because no two floating-point implementations of a chaotic system stay in agreement indefinitely.
 
 ## Next stages
-- Stage 3: loop unrolling and fast-math.
 - Stage 4: block-size and occupancy tuning.
 
 ## Notes
