@@ -9,6 +9,7 @@
 int main(int argc, char** argv) {
   SimConfig config = defaultConfig();
   std::string csvPath = "results/stage0_benchmark.csv";
+  std::string dumpFinalPath;
   bool fullSweep = false;
 
   for (int i = 1; i < argc; ++i) {
@@ -21,6 +22,8 @@ int main(int argc, char** argv) {
       config.repeats = std::stoi(argv[++i]);
     } else if (arg == "--csv" && i + 1 < argc) {
       csvPath = argv[++i];
+    } else if (arg == "--dump-final" && i + 1 < argc) {
+      dumpFinalPath = argv[++i];
     } else if (arg == "--sweep") {
       fullSweep = true;
     } else if (arg == "--colliding") {
@@ -89,6 +92,10 @@ int main(int argc, char** argv) {
       }
 
       runTimes.push_back(nowMs() - start);
+
+      if (run == 0 && !dumpFinalPath.empty()) {
+        writePositionsCsv(dumpFinalPath, positions);
+      }
     }
 
     const double avgTotalMs = std::accumulate(runTimes.begin(), runTimes.end(), 0.0) / static_cast<double>(runTimes.size());

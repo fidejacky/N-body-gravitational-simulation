@@ -164,3 +164,42 @@ inline bool appendCsvRow(const std::string& path, const std::vector<std::string>
   out << '\n';
   return true;
 }
+
+inline bool writePositionsCsv(const std::string& path, const std::vector<float4>& positions) {
+  std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+  std::ofstream out(path, std::ios::trunc);
+  if (!out) {
+    return false;
+  }
+  out << "x,y,z,mass\n";
+  out << std::setprecision(9);
+  for (const auto& p : positions) {
+    out << p.x << ',' << p.y << ',' << p.z << ',' << p.w << '\n';
+  }
+  return true;
+}
+
+inline bool readPositionsCsv(const std::string& path, std::vector<float4>& positions) {
+  std::ifstream in(path);
+  if (!in) {
+    return false;
+  }
+
+  std::string line;
+  std::getline(in, line);  // header
+
+  positions.clear();
+  while (std::getline(in, line)) {
+    if (line.empty()) {
+      continue;
+    }
+    std::istringstream lineStream(line);
+    std::string token;
+    float values[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 4 && std::getline(lineStream, token, ','); ++i) {
+      values[i] = std::stof(token);
+    }
+    positions.push_back(make_float4(values[0], values[1], values[2], values[3]));
+  }
+  return true;
+}

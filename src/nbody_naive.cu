@@ -78,6 +78,7 @@ __global__ void integrateKernel(float4* pos, float4* vel, const float4* acc, int
 int main(int argc, char** argv) {
   SimConfig config = defaultConfig();
   std::string csvPath = "results/stage1_benchmark.csv";
+  std::string dumpFinalPath;
   bool fullSweep = false;
 
   for (int i = 1; i < argc; ++i) {
@@ -92,6 +93,8 @@ int main(int argc, char** argv) {
       config.warmup = std::stoi(argv[++i]);
     } else if (arg == "--csv" && i + 1 < argc) {
       csvPath = argv[++i];
+    } else if (arg == "--dump-final" && i + 1 < argc) {
+      dumpFinalPath = argv[++i];
     } else if (arg == "--sweep") {
       fullSweep = true;
     } else if (arg == "--colliding") {
@@ -145,6 +148,12 @@ int main(int argc, char** argv) {
       CUDA_CHECK(cudaGetLastError());
       CUDA_CHECK(cudaDeviceSynchronize());
       runTimes.push_back(nowMs() - start);
+
+      if (run == 0 && !dumpFinalPath.empty()) {
+        std::vector<float4> finalPos(static_cast<size_t>(n));
+        CUDA_CHECK(cudaMemcpy(finalPos.data(), dPos, bytes, cudaMemcpyDeviceToHost));
+        writePositionsCsv(dumpFinalPath, finalPos);
+      }
     }
 
     CUDA_CHECK(cudaFree(dPos));
