@@ -49,7 +49,7 @@ target_compile_options(nbody_tiled_fastmath_um PRIVATE $<$<COMPILE_LANGUAGE:CUDA
 add_executable(nbody_tuned src/nbody_tuned.cu)
 
 # Stage 5: library-based performance ceiling via Thrust (validation/ceiling
-# use only, per CLAUDE.md — not the main implementation). Thrust's headers
+# use only, per CLAUDE.md - not the main implementation). Thrust's headers
 # require the standard-conforming preprocessor; MSVC defaults to its
 # traditional one, so this must be passed through to cl.exe for this target.
 add_executable(nbody_thrust src/nbody_thrust.cu)

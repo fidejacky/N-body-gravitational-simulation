@@ -5,7 +5,7 @@ simulation, built to explore how a compute-bound problem with high arithmetic
 intensity maps onto the GPU. This is a school project for a GPU Computing
 course, and the work is organized as an iterative set of independently
 benchmarkable stages. The project starts from a serial CPU baseline and stacks
-five optimizations — each measured independently — up to a tiled,
+five optimizations  -  each measured independently  -  up to a tiled,
 occupancy-tuned kernel, with a library-based implementation used only as a
 performance ceiling for comparison.
 
@@ -21,16 +21,16 @@ validation and as a reference upper bound, not as the main implementation.
 
 The simulation tracks `N` bodies, each with a position, velocity, and mass.
 Every body feels a gravitational pull from every other body. Each timestep
-computes the net force on each body — an O(N²) operation, since every body
-interacts with every other — then updates velocities and positions with a
+computes the net force on each body  -  an O(N²) operation, since every body
+interacts with every other  -  then updates velocities and positions with a
 simple integrator.
 
 This is the *direct* or *all-pairs* method, which evaluates every interaction
 explicitly rather than approximating distant groups (as Barnes-Hut does). The
 brute-force version is chosen deliberately: it is the variant that maps cleanly
 onto the GPU and exposes a clear optimization path. Parallelization is
-output-centric — one thread owns one body and accumulates the total force acting
-on it — so no atomics are needed, because each thread writes only its own result.
+output-centric  -  one thread owns one body and accumulates the total force acting
+on it  -  so no atomics are needed, because each thread writes only its own result.
 
 The reason this problem suits the GPU is its high arithmetic intensity: a large
 number of floating-point operations per byte loaded, since each body's data is
@@ -48,7 +48,7 @@ a_i = G * Σ (over j≠i)  m_j * (r_j - r_i) / (|r_j - r_i|² + ε²)^(3/2)
 
 - `G` is the gravitational constant, set to 1.0 in simulation units (physical
   realism is not a goal of the project).
-- `ε` is a softening factor — a small constant added to the denominator so that
+- `ε` is a softening factor  -  a small constant added to the denominator so that
   forces between very close bodies stay finite instead of diverging and
   destabilizing the simulation. `ε²` is set in the range 0.01–0.1.
 - The `^(3/2)` term is evaluated as a reciprocal square root followed by cubing,
@@ -86,21 +86,21 @@ coalescing and alignment optimization.
 Each stage is a separate, independently benchmarked version, and all versions
 remain runnable so results can be regenerated.
 
-### Stage 0 — Serial CPU baseline
+### Stage 0  -  Serial CPU baseline
 
 A plain C++ implementation with a double-nested loop over all pairs, compiled
 with `-O3`. This provides the reference time against which all GPU speedups are
 measured.
 
-### Stage 1 — Naive GPU kernel
+### Stage 1  -  Naive GPU kernel
 
 One thread per body. Each thread loops over all `N` bodies, reading their
 positions directly from global memory and accumulating acceleration.
 Output-centric with no atomics. Every thread re-reads all `N` positions from
-global memory, producing N× redundant global traffic — the bottleneck the next
+global memory, producing N× redundant global traffic  -  the bottleneck the next
 stage targets.
 
-### Stage 2 — Shared-memory tiling
+### Stage 2  -  Shared-memory tiling
 
 Each block cooperatively loads a tile of body positions into shared memory; every
 thread in the block computes interactions against that tile, then synchronizes
@@ -110,7 +110,7 @@ the canonical N-body tiling pattern, where a `p × p` block of interactions is
 evaluated from `p` loaded bodies, and it is where the problem's high arithmetic
 intensity is exploited.
 
-### Stage 3 — Loop unrolling and fast-math intrinsics
+### Stage 3  -  Loop unrolling and fast-math intrinsics
 
 Two changes: `#pragma unroll` on the inner tile loop, and replacing the
 `pow(..., 1.5)` / `sqrt` path with the `rsqrtf` intrinsic and explicit
@@ -118,14 +118,14 @@ multiplies, using `fmaf` for the multiply-adds. The fast-math path can also be
 compiled with `-use_fast_math`, with the resulting accuracy difference recorded
 against the double-precision CPU baseline.
 
-### Stage 4 — Block-size and occupancy tuning
+### Stage 4  -  Block-size and occupancy tuning
 
 A sweep over block sizes (64, 128, 256, 512, 1024), with achieved occupancy,
 registers per thread, and warps per SM read from Nsight Compute. The best
 configuration is selected and explained in terms of occupancy and register
 pressure.
 
-### Stage 5 — Library ceiling
+### Stage 5  -  Library ceiling
 
 The same simulation expressed through a Thrust-based formulation (or compared
 against a reference implementation such as the CUDA samples `nbody` binary),
@@ -136,7 +136,7 @@ of the optimized reference's performance.
 
 If time allows, a memory-bandwidth-bound kernel (such as a simple stencil) is
 added to show that tiling produces a large speedup on N-body but only a small
-one on the bandwidth-bound kernel — demonstrating *when* these GPU optimizations
+one on the bandwidth-bound kernel  -  demonstrating *when* these GPU optimizations
 pay off, not just that they do.
 
 ## Measurement methodology
