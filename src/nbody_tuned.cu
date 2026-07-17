@@ -17,17 +17,12 @@
     }                                                                    \
   } while (0)
 
-/* Same kernel as Stage 3 (tiling + unroll + rsqrtf + fmaf), but templated on
-block size instead of using a single compile-time constant. This is Stage 4's
-whole point: sweep the block size at runtime while still letting the compiler
-fully unroll the inner tile loop for each size, since BLOCK_SIZE is a template
-parameter (a genuine compile-time constant per instantiation), not a runtime
-variable. One binary, five instantiations (64/128/256/512/1024), selected by
---block-size and dispatched through runStepsDispatch below. */
 template <int BLOCK_SIZE>
 __global__ void computeForcesTiledFastKernel(const float4* pos, float4* acc, int n, float epsSq) {
+  // Shared-memory tiling
   __shared__ float4 tile[BLOCK_SIZE];
 
+  // One thread per body
   const int i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
   const float4 pi = (i < n) ? pos[i] : make_float4(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -41,6 +36,7 @@ __global__ void computeForcesTiledFastKernel(const float4* pos, float4* acc, int
     tile[threadIdx.x] = (j < n) ? pos[j] : make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     __syncthreads();
 
+// Loop unrolling
 #pragma unroll
     for (int k = 0; k < BLOCK_SIZE; ++k) {
       const float4 pj = tile[k];
@@ -48,6 +44,7 @@ __global__ void computeForcesTiledFastKernel(const float4* pos, float4* acc, int
       const float dy = pj.y - pi.y;
       const float dz = pj.z - pi.z;
       const float distSq = dx * dx + dy * dy + dz * dz + epsSq;
+      // Fast-math intrinsics
       const float invDist = rsqrtf(distSq);
       const float invDistCubed = invDist * invDist * invDist;
       const float strength = pj.w * invDistCubed;
@@ -93,6 +90,7 @@ void runSteps(float4* dPos, float4* dVel, float4* dAcc, int n, float epsSq, floa
   }
 }
 
+// Runtime block-size tuning
 void runStepsDispatch(int blockSize, float4* dPos, float4* dVel, float4* dAcc, int n, float epsSq, float dt, int numSteps) {
   switch (blockSize) {
     case 64:

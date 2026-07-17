@@ -17,18 +17,18 @@ This repository contains a staged GPU Computing project for a direct, all-pairs 
 - Simulation state stays on the GPU across timesteps unless snapshots are requested.
 
 ## Current repository contents
-- [src/common.h](src/common.h) - shared helpers for float4 operations, initialization, timing, and CSV output.
-- [src/nbody_cpu.cpp](src/nbody_cpu.cpp) - Stage 0 CPU baseline.
-- [src/nbody_naive.cu](src/nbody_naive.cu) - Stage 1 naive GPU kernel (one thread per body).
-- [src/nbody_tiled.cu](src/nbody_tiled.cu) - Stage 2 shared-memory tiled GPU kernel.
-- [src/nbody_tiled_fastmath.cu](src/nbody_tiled_fastmath.cu) - Stage 3 kernel (loop unrolling, `rsqrtf`, `fmaf`); built as two targets, with and without `--use_fast_math`.
-- [src/nbody_tuned.cu](src/nbody_tuned.cu) - Stage 4 kernel, templated on block size for a `--block-size` sweep (64/128/256/512/1024).
-- [bench/run_sweep.sh](bench/run_sweep.sh) - sweeps `nbody_tuned` across all block sizes and the full N range into one CSV.
-- [src/nbody_thrust.cu](src/nbody_thrust.cu) - Stage 5 library-based ceiling, expressed with Thrust instead of a hand-written kernel.
-- [src/validate.cpp](src/validate.cpp) - compares two stages' `--dump-final` position dumps against a tolerance.
-- [docs/log.md](docs/log.md) - iterative development log.
-- [project_plan.md](project_plan.md) - project plan and stage breakdown.
-- [CLAUDE.md](CLAUDE.md) - course-project context and current constraints.
+- [src/common.h](src/common.h): shared helpers for float4 operations, initialization, timing, and CSV output.
+- [src/nbody_cpu.cpp](src/nbody_cpu.cpp): Stage 0 CPU baseline.
+- [src/nbody_naive.cu](src/nbody_naive.cu): Stage 1 naive GPU kernel (one thread per body).
+- [src/nbody_tiled.cu](src/nbody_tiled.cu): Stage 2 shared-memory tiled GPU kernel.
+- [src/nbody_tiled_fastmath.cu](src/nbody_tiled_fastmath.cu): Stage 3 kernel (loop unrolling, `rsqrtf`, `fmaf`); built as two targets, with and without `--use_fast_math`.
+- [src/nbody_tuned.cu](src/nbody_tuned.cu): Stage 4 kernel, templated on block size for a `--block-size` sweep (64/128/256/512/1024).
+- [bench/run_sweep.sh](bench/run_sweep.sh): sweeps `nbody_tuned` across all block sizes and the full N range into one CSV.
+- [src/nbody_thrust.cu](src/nbody_thrust.cu): Stage 5 library-based ceiling, expressed with Thrust instead of a hand-written kernel.
+- [src/validate.cpp](src/validate.cpp): compares two stages' `--dump-final` position dumps against a tolerance.
+- [docs/log.md](docs/log.md): iterative development log.
+- [project_plan.md](project_plan.md): project plan and stage breakdown.
+- [CLAUDE.md](CLAUDE.md): course-project context and current constraints.
 
 ## Build
 
@@ -122,17 +122,17 @@ To sweep all five block sizes across the full N range in one go:
 ./bench/run_sweep.sh
 ```
 
-Writes `results/stage4_benchmark.csv`. On this GPU, no single block size wins at every N (the best shifts with problem size), but averaged across all N, **block sizes 64 and 128 tie for best overall** (~1.13-1.14x over the best-per-N time), both clearly ahead of 256  -  the default used throughout Stages 1-3  -  which averages 1.50x. Full table and analysis in `docs/log.md`.
+Writes `results/stage4_benchmark.csv`. On this GPU, no single block size wins at every N (the best shifts with problem size), but averaged across all N, **block sizes 64 and 128 tie for best overall** (~1.13-1.14x over the best-per-N time), both clearly ahead of 256: the default used throughout Stages 1-3: which averages 1.50x. Full table and analysis in `docs/log.md`.
 
-Nsight Compute profiling (occupancy, registers/thread, warps/SM) confirms a counterintuitive result: **achieved occupancy rises with block size** (35% at bs=64 up to 67% at bs=1024, which sits right at its own hardware-limited 67% ceiling), yet **wall-clock speed goes the other way**  -  bs=64/128 are fastest despite the lowest occupancy. Registers/thread are constant (40) across all sizes, so this isn't register pressure; it's the classic occupancy-doesn't-equal-performance lesson for a compute-bound kernel, where smaller blocks' extra `__syncthreads()` overhead (more tiles per body) apparently costs less than the occupancy they're missing gains. `ncu` itself required running from an Administrator terminal on this hybrid-graphics laptop (the usual GUI permission grant, NVIDIA Control Panel's Developer Settings, was unavailable since the display isn't driven by the RTX 5050). Full table and commands in `docs/log.md`.
+Nsight Compute profiling (occupancy, registers/thread, warps/SM) confirms a counterintuitive result: **achieved occupancy rises with block size** (35% at bs=64 up to 67% at bs=1024, which sits right at its own hardware-limited 67% ceiling), yet **wall-clock speed goes the other way**: bs=64/128 are fastest despite the lowest occupancy. Registers/thread are constant (40) across all sizes, so this isn't register pressure; it's the classic occupancy-doesn't-equal-performance lesson for a compute-bound kernel, where smaller blocks' extra `__syncthreads()` overhead (more tiles per body) apparently costs less than the occupancy they're missing gains. `ncu` itself required running from an Administrator terminal on this hybrid-graphics laptop (the usual GUI permission grant, NVIDIA Control Panel's Developer Settings, was unavailable since the display isn't driven by the RTX 5050). Full table and commands in `docs/log.md`.
 
-**Stage 5 (Thrust library ceiling)** expresses the same simulation with `thrust::for_each` instead of a hand-written kernel  -  no manual tiling, no launch configuration, and deliberately the plain unoptimized math (matching Stage 1), so it represents the honest "reached for the library instead of hand-tuning" baseline:
+**Stage 5 (Thrust library ceiling)** expresses the same simulation with `thrust::for_each` instead of a hand-written kernel: no manual tiling, no launch configuration, and deliberately the plain unoptimized math (matching Stage 1), so it represents the honest "reached for the library instead of hand-tuning" baseline:
 
 ```powershell
 results\nbody_thrust.exe --n 8192 --steps 50 --repeats 3 --csv results\stage5_sample.csv
 ```
 
-Same CLI/CSV format as the other stages, defaulting to `results\stage5_benchmark.csv`. On this GPU, the full hand-tuned pipeline (Stage 4) beats this Thrust baseline by **7-11x at small/mid N, narrowing to 2.6x at N=32768** as the problem becomes compute-bound enough to swamp Thrust's abstraction overhead. Comparing Thrust against Stage 1 (hand-written, identical math) isolates that abstraction overhead specifically: ~1.7-1.9x in the mid-size range, converging to near-parity at both extremes. Full tables in `docs/log.md`, including a note on measurement variance across sessions (this laptop GPU's absolute numbers drift somewhat run-to-run, likely thermal/clock related  -  relative comparisons within the same session are the reliable signal).
+Same CLI/CSV format as the other stages, defaulting to `results\stage5_benchmark.csv`. On this GPU, the full hand-tuned pipeline (Stage 4) beats this Thrust baseline by **7-11x at small/mid N, narrowing to 2.6x at N=32768** as the problem becomes compute-bound enough to swamp Thrust's abstraction overhead. Comparing Thrust against Stage 1 (hand-written, identical math) isolates that abstraction overhead specifically: ~1.7-1.9x in the mid-size range, converging to near-parity at both extremes. Full tables in `docs/log.md`, including a note on measurement variance across sessions (this laptop GPU's absolute numbers drift somewhat run-to-run, likely thermal/clock related: relative comparisons within the same session are the reliable signal).
 
 ### Validating a stage against the CPU baseline
 
