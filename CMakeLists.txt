@@ -43,6 +43,20 @@ add_executable(nbody_tiled_fastmath src/nbody_tiled_fastmath.cu)
 add_executable(nbody_tiled_fastmath_um src/nbody_tiled_fastmath.cu)
 target_compile_options(nbody_tiled_fastmath_um PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 
+# Stage 4: block-size and occupancy tuning. Same Stage 3 kernel, templated on
+# block size so one binary can sweep 64/128/256/512/1024 via --block-size
+# while the compiler still fully unrolls the inner tile loop per size.
+add_executable(nbody_tuned src/nbody_tuned.cu)
+
+# Stage 5: library-based performance ceiling via Thrust (validation/ceiling
+# use only, per CLAUDE.md — not the main implementation). Thrust's headers
+# require the standard-conforming preprocessor; MSVC defaults to its
+# traditional one, so this must be passed through to cl.exe for this target.
+add_executable(nbody_thrust src/nbody_thrust.cu)
+if(MSVC)
+  target_compile_options(nbody_thrust PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>)
+endif()
+
 # Cross-stage correctness check (no CUDA needed): compares two --dump-final CSVs
 add_executable(validate src/validate.cpp)
 target_compile_features(validate PRIVATE cxx_std_17)
